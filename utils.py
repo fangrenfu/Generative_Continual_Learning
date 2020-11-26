@@ -154,6 +154,7 @@ def initialize_weights(net):
             m.bias.data.zero_()
 
 
+# 冒号是参数的类型建议符
 def variable(t: torch.Tensor, use_cuda=True, **kwargs):
     if torch.cuda.is_available() and use_cuda:
         t = t.cuda()

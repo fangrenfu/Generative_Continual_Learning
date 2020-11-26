@@ -63,7 +63,7 @@ def parse_args():
     parser.add_argument('--size_epoch', type=int, default=1000)
     parser.add_argument('--gpu_mode', type=bool, default=True)
     parser.add_argument('--device', type=int, default=0)
-    parser.add_argument('--verbose', type=bool, default=False)
+    parser.add_argument('--verbose', type=bool, default=False) # 冗长的？？
 
     parser.add_argument('--lrG', type=float, default=0.0002)
     parser.add_argument('--lrD', type=float, default=0.0002)

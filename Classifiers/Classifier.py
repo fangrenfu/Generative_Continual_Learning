@@ -12,52 +12,64 @@ import math
 class Classifier(object):
     def __init__(self, args):
         super(Classifier, self).__init__()
-
+        # 获得参数
         self.args = args
         self.batchsize = args.batch_size
         self.gpu_mode = args.gpu_mode
         self.device = args.device
         self.save_dir = args.save_dir
         self.verbose = args.verbose
-
+        # 定义神经网络
         self.net = Net()
+        # 选择计算设备，是否使用显卡以及用哪一块
         if self.gpu_mode:
             self.net.cuda(self.device)
+        # 优化器,使用Adm
         self.optimizer = optim.Adam(params=self.net.parameters(), lr=self.args.lrC)
 
+    # 在某任务上训练，这个函数看起来训练是一个一个样本训练的。
     def train_on_task(self, train_loader, ind_task, epoch, additional_loss):
+        # 训练
         self.net.train()
         epoch_loss = 0
         correct = 0
+        # 打乱训练的任务？
         train_loader.shuffle_task()
         for data, target in train_loader:
+            # todo：有下面那一句，这个好像多此一举了。尝试注释掉
             data, target = variable(data), variable(target)
 
             if self.gpu_mode:
                 data, target = data.cuda(self.device), target.cuda(self.device)
 
+            # 初始化梯度为0
             self.optimizer.zero_grad()
-
+            # 得到网络输出的结果。
             output = self.net(data)
+            # 交叉熵损失
             loss = F.cross_entropy(output, target)
+            # 累计批次损失,item()是得到张量的值
             epoch_loss += loss.item()
-
+            # todo:附加损失是什么用的？
             if additional_loss is not None:
                 regularization = additional_loss(self.net)
-
+                # 正则化项
                 if regularization is not None:
                     loss += regularization
-
+            # 损失反向传播
             loss.backward()
+            # 启动优化
             self.optimizer.step()
+            # 统计正确的,标[1]是得到最大值的位置。
             correct += (output.max(dim=1)[1] == target).data.sum()
 
         if self.verbose:
             print('Train eval : task : ' + str(ind_task) + " - correct : " + str(correct) + ' / ' + str(
                 len(train_loader)))
-
+        # 返回平均损失和准确率
         return epoch_loss / np.float(len(train_loader)), 100. * correct / np.float(len(train_loader))
 
+    # 验证任务
     def eval_on_task(self, test_loader, verbose=False):
         self.net.eval()
         correct = 0
@@ -69,11 +81,14 @@ class Classifier(object):
 
         for data, target in test_loader:
             batch = variable(data)
+            # 转变为1维
             label = variable(target.squeeze())
             classif = self.net(batch)
+            # 这下面为什么有用负对数似然损失。训练时候用的是交叉熵损失。
             loss_classif = F.nll_loss(classif, label)
             val_loss_classif += loss_classif.item()
             pred = classif.data.max(1, keepdim=True)[1]  # get the index of the max log-probability
+            # 两个做比较并累计,看有多少个相同的，因为label之前放gpu里面了，把他拿回来
             correct += pred.eq(label.data.view_as(pred)).cpu().sum()
 
             for i in range(label.data.shape[0]):
@@ -89,7 +104,7 @@ class Classifier(object):
         if verbose:
             print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)'.format(
                 val_loss_classif, correct, (len(test_loader)*self.batchsize),
-                100. * correct / (len(test_loader)*self.batchsize)))
+                100. * correct / (len(test_loader)*self.batchsize)))  # 实际上batchsize没有用到
 
             for i in range(10):
                 print('Classe {} Accuracy: {}/{} ({:.3f}%, Wrong : {})'.format(
@@ -106,7 +121,7 @@ class Classifier(object):
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
 
-        if Best:
+        if Best:  # self.net.state_dict() 网络的结构
             torch.save(self.net.state_dict(), os.path.join(self.save_dir, 'Best_Classifier.pkl'))
         else:
             torch.save(self.net.state_dict(), os.path.join(self.save_dir, 'Classifier_' + str(ind_task) + '.pkl'))
